@@ -2,9 +2,10 @@
 
 ### Products API ###
 import openai
-
+from pydantic import BaseModel
 
 from fastapi import APIRouter
+
 
 router = APIRouter(prefix="/embbeding_corpus",
                    tags=["embbeding"],
@@ -14,7 +15,9 @@ router = APIRouter(prefix="/embbeding_corpus",
 # @router.get("/")
 # async def products():
 #     return products_list
-
+class Item(BaseModel):
+    text: str
+   
 
 # @router.get("/{id}")
 # async def products(id: int):
@@ -29,9 +32,9 @@ async def scrap_url(url:str):
 
 ## procesamiento de incrustamiento
 @router.post("/")
-async def embedding(text: str):
+async def embedding(text: Item):
     #procesamiento de parrafos
-   
+    print(text.text)
     texot = """¡Por supuesto! Aquí te presento una empresa ficticia del mundo de los videojuegos con su misión, visión, análisis FODA y descripción de la empresa y sus servicios.
 
 Nombre de la empresa: GamerGenius
@@ -40,9 +43,9 @@ Misión: Proporcionar la mejor experiencia de juego posible a nuestros clientes,
 
 Visión: Ser líderes en el mercado de los videojuegos, reconocidos por nuestra pasión por los juegos, nuestro compromiso con la calidad y la innovación, y nuestra capacidad para satisfacer todas las necesidades de los jugadores."""
     #texot = texot.replace('""','')
-    newtext = get_add_paras(texot,1)
-    parrafos = embedding2(newtext)
-    return parrafos
+    newtext = get_add_paras(text.text,1)
+  #  parrafos = embedding2(newtext)
+    return newtext
  
 ## procesamiento de archivos??
 @router.post("/files")
