@@ -50,14 +50,17 @@ async def embedding(body: Item):
  
 ## procesamiento de archivos??
 @router.post("/files")
-async def scrap_url(url:str):
-    print(url)
-    return url
+async def scrap_url():
+    df = pd.read_csv('embeddings2.csv', index_col=0)
+    print(df)
+    print(df['embeddings'])
+    print(df['embeddings'].values)
+    #return url
 
 ## embedding pregunta + completion (prueba de asistente)
 @router.post("/completion")
 async def completion(question:Question):
-    df = pd.read_csv('embeddings2.csv', index_col=0)
+    df = pd.read_csv('embeddings.csv', index_col=0)
     #print(df[0].values)
     answer_question(df, question="¿Que sabes de GamerGenius?")
 
@@ -65,7 +68,8 @@ async def completion(question:Question):
 
 def remove_lines(text: str):
     
-    text = text.replace('\n', ' ')
+    text = text.replace('\n\n', ' ')
+    text = text.replace('\n',' ')
     text = text.replace('  ', ' ')
     text = text.replace('  ', ' ')
     return text
@@ -74,14 +78,14 @@ def save_text_in_csv(text:str):
     # Create a list to store the text files
     tokenizer = tiktoken.get_encoding("cl100k_base")
     max_tokens = 500
-    array_text=[text]
-    # Create a dataframe from the list of texts
-    df = pd.DataFrame(array_text, columns = [ 'text'])
+    # array_text=[text]
+    # # Create a dataframe from the list of texts
+    # df = pd.DataFrame(array_text, columns = [ 'text'])
 
-    # Set the text column to be the raw text with the newlines removed
-    df['text'] = remove_lines(df.text)
-    df.to_csv('scraped.csv')
-    df.head() 
+    # # Set the text column to be the raw text with the newlines removed
+    # df['text'] = remove_lines(df.text)
+    # df.to_csv('scraped.csv')
+    # df.head() 
     
     shortened = []
     df = tokenization()
@@ -94,7 +98,7 @@ def save_text_in_csv(text:str):
 
      print(row)           # If the number of tokens is greater than the max number of tokens, split the text into chunks
     if row[1]['n_tokens'] > max_tokens:
-        shortened += split_into_many(row[1]['text'])
+        shortened += split_into_many(row[1]['text'],max_tokens)
                 
                 # Otherwise, add the text to the list of shortened texts
     else:
@@ -112,7 +116,7 @@ def tokenization():
     tokenizer = tiktoken.get_encoding("cl100k_base")
 
     df = pd.read_csv('scraped.csv', index_col=0)
-    df.columns = [ 'text']
+    df.columns = [ 'fname','text']
 
     # Tokenize the text and save the number of tokens to a new column
     df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
@@ -163,7 +167,7 @@ def split_into_many(text, max_tokens):
 def embedding_processing(parrafos):
     #api_url = "https://api.openai.com/v1/embeddings"
     openai_embedding_model = "text-embedding-ada-002"
-    openai.api_key  = "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"
+    openai.api_key  = "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"
     parrafos['embeddings'] = parrafos.text.apply(lambda x: openai.Embedding.create(input=x, engine=openai_embedding_model)['data'][0]['embedding'])
     parrafos.to_csv('embeddings.csv')
     parrafos=pd.read_csv('embeddings.csv', index_col=0)
@@ -181,12 +185,11 @@ def create_context(
     """
 
     # Get the embeddings for the question
-    openai.api_key  = "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"
+    openai.api_key  = "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"
     q_embeddings = openai.Embedding.create(input=question, engine='text-embedding-ada-002')['data'][0]['embedding']
 
     # Get the distances from the embeddings
-    #print(q_embeddings)
-    #print(df)
+    print( df['embeddings'].values)
     df['distances'] = distances_from_embeddings(q_embeddings, df['embeddings'].values, distance_metric='cosine')
 
 
@@ -236,7 +239,7 @@ def answer_question(
 
     try:
         # Create a completions using the questin and context
-        openai.api_key  = "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"
+        openai.api_key  = "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"
         response = openai.Completion.create(
             prompt=f"Responde la pregunta basado en el siguiente contexto, y si no sabes la respuesta dime  \"Eres un puto genio\"\n\nContexto: {context}\n\n---\n\nPreguntan: {question}\nRespuesta:",
             temperature=0,
