@@ -3,9 +3,9 @@
 ### Products API ###
 import pandas as pd
 import numpy as np
-import ast
 import tiktoken
 import openai
+from PyPDF2 import PdfReader
 from openai.embeddings_utils import distances_from_embeddings
 from openai.embeddings_utils import distances_from_embeddings, cosine_similarity
 from pydantic import BaseModel
@@ -44,8 +44,15 @@ async def embedding(body: Item):
     #procesamiento de parrafos
     
     print(body.text)
-    df = save_text_in_csv(body.text)
+    df = save_text_in_csv(body.text,1)
     df.to_csv('text_processed.csv')
+    try:
+       df_files = pd.read_csv('files_processed.csv', index_col=0)
+    except Exception as e:
+        print(e)
+        return ""
+    df_concat = pd.concat([df, df_files])
+    print(f"DF_CONCAT========>{df_concat}")
     ## CSV TEXT_AREA + CSV TEXT_PDF + CSV TEXT_PAGWEB
     parrafos = embedding_processing(df)
     print(parrafos)
@@ -53,11 +60,16 @@ async def embedding(body: Item):
  
 ## procesamiento de archivos??
 @router.post("/files")
-async def scrap_url():
-    df = pd.read_csv('embeddings2.csv', index_col=0)
-    print(df)
-    print(df['embeddings'])
-    print(df['embeddings'].values)
+async def files(body: Item):
+    reader = PdfReader("herramientas_IA.pdf")
+    number_of_pages = len(reader.pages)
+    page = reader.pages[0]
+    text = page.extract_text()
+    df = save_text_in_csv(text, 2)
+    df.replace('', np.nan, inplace=True)
+    df.dropna(inplace=True)
+    df.to_csv('files_processed.csv')
+    #print(text)
     #return url
 
 # embedding pregunta + completion (prueba de asistente)
@@ -76,10 +88,12 @@ def paragraph_separator(text: str):
    print(array_text)
    return array_text
 
-def save_text_in_csv(text:str):
+def save_text_in_csv(text:str, number:int):
     # Se calculan los tokens del texto
     # tokenizer = tiktoken.get_encoding("cl100k_base")
     # max_tokens = 500
+    if number == 2:
+      text=text.replace(' \n','\n')
     array_text = paragraph_separator(text)
     # Se crea el dataframe del texto
     df = pd.DataFrame(array_text, columns = [ 'text'])
@@ -92,7 +106,6 @@ def save_text_in_csv(text:str):
     max_tokens = 500
     shortened = []
     # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
-    
     df.columns = [ 'text']
     # Tokenize the text and save the number of tokens to a new column
     df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
@@ -163,7 +176,7 @@ def split_into_many(text, max_tokens):
 def embedding_processing(parrafos):
     #api_url = "https://api.openai.com/v1/embeddings"
     openai_embedding_model = "text-embedding-ada-002"
-    openai.api_key  = "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"
+    openai.api_key  = "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"
     parrafos['embeddings'] = parrafos.text.apply(lambda x: openai.Embedding.create(input=x, engine=openai_embedding_model)['data'][0]['embedding'])
     parrafos.to_csv('embeddings.csv')
     parrafos=pd.read_csv('embeddings.csv', index_col=0)
@@ -181,7 +194,7 @@ def create_context(
     """
 
     # Get the embeddings for the question
-    openai.api_key  = "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"
+    openai.api_key  = "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"
     q_embeddings = openai.Embedding.create(input=question, engine='text-embedding-ada-002')['data'][0]['embedding']
 
     # Get the distances from the embeddings
@@ -239,7 +252,7 @@ def answer_question(
 
     try:
         # Create a completions using the questin and context
-        openai.api_key  = "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"
+        openai.api_key  = "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"
         response = openai.Completion.create(
             prompt=f"Responde la pregunta basado en el siguiente contexto, y si no sabes la respuesta dime  \"Eres un puto genio\"\n\nContexto: {context}\n\n---\n\nPreguntan: {question}\nRespuesta:",
             temperature=0,
