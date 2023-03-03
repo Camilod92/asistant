@@ -3,6 +3,7 @@
 ### Products API ###
 import pandas as pd
 import numpy as np
+import ast
 import tiktoken
 import openai
 from openai.embeddings_utils import distances_from_embeddings
@@ -43,10 +44,12 @@ async def embedding(body: Item):
     #procesamiento de parrafos
     
     print(body.text)
-    newtext = save_text_in_csv(body.text)
-    
-    parrafos = embedding_processing(newtext)
-    #return parrafos
+    df = save_text_in_csv(body.text)
+    df.to_csv('text_processed.csv')
+    ## CSV TEXT_AREA + CSV TEXT_PDF + CSV TEXT_PAGWEB
+    parrafos = embedding_processing(df)
+    print(parrafos)
+    return "hola hay pan"
  
 ## procesamiento de archivos??
 @router.post("/files")
@@ -57,51 +60,59 @@ async def scrap_url():
     print(df['embeddings'].values)
     #return url
 
-## embedding pregunta + completion (prueba de asistente)
+# embedding pregunta + completion (prueba de asistente)
 @router.post("/completion")
 async def completion(question:Question):
     df = pd.read_csv('embeddings.csv', index_col=0)
     #print(df[0].values)
-    answer_question(df, question="¿Que sabes de GamerGenius?")
+    response =answer_question(df, question="¿Que sabes de GamerGenius?")
 
-    return question.pregunta
+    return response
 
-def remove_lines(text: str):
-    
-    text = text.replace('\n\n', ' ')
-    text = text.replace('\n',' ')
-    text = text.replace('  ', ' ')
-    text = text.replace('  ', ' ')
-    return text
+def paragraph_separator(text: str):
+   print(f'TEXTO:===>>>{text}')
+   text=text.replace('\n\n','\n')
+   array_text = text.split('\n')
+   print(array_text)
+   return array_text
 
 def save_text_in_csv(text:str):
-    # Create a list to store the text files
+    # Se calculan los tokens del texto
+    # tokenizer = tiktoken.get_encoding("cl100k_base")
+    # max_tokens = 500
+    array_text = paragraph_separator(text)
+    # Se crea el dataframe del texto
+    df = pd.DataFrame(array_text, columns = [ 'text'])
+
+    df.to_csv('text_processed.csv')
+    df.head() 
+    
+    # Se calculan los tokens del texto
     tokenizer = tiktoken.get_encoding("cl100k_base")
     max_tokens = 500
-    # array_text=[text]
-    # # Create a dataframe from the list of texts
-    # df = pd.DataFrame(array_text, columns = [ 'text'])
-
-    # # Set the text column to be the raw text with the newlines removed
-    # df['text'] = remove_lines(df.text)
-    # df.to_csv('scraped.csv')
-    # df.head() 
-    
     shortened = []
-    df = tokenization()
+    # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
+    
+    df.columns = [ 'text']
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    print(df['n_tokens'])
+    # Visualize the distribution of the number of tokens per row using a histogram
+    df.n_tokens.hist()
+    
             # Loop through the dataframe
     for row in df.iterrows():
-
+     #print(f'Row:===>{row}')
                 # If the text is None, go to the next row
      if row[1]['text'] is None:
         continue
 
-     print(row)           # If the number of tokens is greater than the max number of tokens, split the text into chunks
-    if row[1]['n_tokens'] > max_tokens:
+        # If the number of tokens is greater than the max number of tokens, split the text into chunks
+     if row[1]['n_tokens'] > max_tokens:
         shortened += split_into_many(row[1]['text'],max_tokens)
                 
                 # Otherwise, add the text to the list of shortened texts
-    else:
+     else:
         shortened.append( row[1]['text'] )
     
     df = pd.DataFrame(shortened, columns = ['text'])
@@ -111,26 +122,11 @@ def save_text_in_csv(text:str):
 
         
 
-def tokenization():
-    # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
-    tokenizer = tiktoken.get_encoding("cl100k_base")
-
-    df = pd.read_csv('scraped.csv', index_col=0)
-    df.columns = [ 'fname','text']
-
-    # Tokenize the text and save the number of tokens to a new column
-    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
-    print(df['n_tokens'])
-    # Visualize the distribution of the number of tokens per row using a histogram
-    df.n_tokens.hist()
-    return df
-   
-
 # Function to split the text into chunks of a maximum number of tokens
 def split_into_many(text, max_tokens):
     tokenizer = tiktoken.get_encoding("cl100k_base")
     # Split the text into sentences
-    sentences = text.split('.\n\n')
+    sentences = text.split('. ')
 
     # Get the number of tokens for each sentence
     n_tokens = [len(tokenizer.encode(" " + sentence)) for sentence in sentences]
@@ -167,11 +163,11 @@ def split_into_many(text, max_tokens):
 def embedding_processing(parrafos):
     #api_url = "https://api.openai.com/v1/embeddings"
     openai_embedding_model = "text-embedding-ada-002"
-    openai.api_key  = "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"
+    openai.api_key  = "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"
     parrafos['embeddings'] = parrafos.text.apply(lambda x: openai.Embedding.create(input=x, engine=openai_embedding_model)['data'][0]['embedding'])
     parrafos.to_csv('embeddings.csv')
     parrafos=pd.read_csv('embeddings.csv', index_col=0)
-    parrafos['embeddings'] = parrafos['embeddings'].apply(eval).apply(np.array)
+    #parrafos['embeddings'] = parrafos['embeddings'].apply(eval).apply(np.array)
     parrafos.head()
     
     
@@ -185,11 +181,13 @@ def create_context(
     """
 
     # Get the embeddings for the question
-    openai.api_key  = "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"
+    openai.api_key  = "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"
     q_embeddings = openai.Embedding.create(input=question, engine='text-embedding-ada-002')['data'][0]['embedding']
 
     # Get the distances from the embeddings
-    print( df['embeddings'].values)
+    #print( f"DF:======>{df['embeddings'].values}")
+   # print(f"Q_EMB===>>{q_embeddings}")
+    df['embeddings'] = df['embeddings'].apply(eval).apply(np.array)
     df['distances'] = distances_from_embeddings(q_embeddings, df['embeddings'].values, distance_metric='cosine')
 
 
@@ -207,9 +205,11 @@ def create_context(
             break
         
         # Else add it to the text that is being returned
+        print(f"CUR_LEN===>{cur_len}")
         returns.append(row["text"])
 
     # Return the context
+    print(f"CUR_LEN_FOR===>{cur_len}")
     return "\n\n###\n\n".join(returns)
 
 def answer_question(
@@ -219,7 +219,7 @@ def answer_question(
     max_len=1800,
     size="ada",
     debug=False,
-    max_tokens=150,
+    max_tokens=2200,
     stop_sequence=None
 ):
     """
@@ -239,7 +239,7 @@ def answer_question(
 
     try:
         # Create a completions using the questin and context
-        openai.api_key  = "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"
+        openai.api_key  = "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"
         response = openai.Completion.create(
             prompt=f"Responde la pregunta basado en el siguiente contexto, y si no sabes la respuesta dime  \"Eres un puto genio\"\n\nContexto: {context}\n\n---\n\nPreguntan: {question}\nRespuesta:",
             temperature=0,
